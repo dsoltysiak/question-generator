@@ -4,9 +4,47 @@ from typing import Dict, List, Any
 import torch
 from keybert import KeyBERT
 from nltk import sent_tokenize
-from transformers import T5ForConditionalGeneration, T5Tokenizer
+from transformers import T5ForConditionalGeneration, T5Tokenizer, T5TokenizerFast
 
-from config import max_input_length, summary_model
+from config import (
+    max_input_length,
+    summary_model,
+    max_target_length,
+    MODEL_PATH,
+    pretrained_model,
+)
+
+
+def get_question(text, keyword):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = T5ForConditionalGeneration.from_pretrained(MODEL_PATH).to(device)
+    tokenizer = T5TokenizerFast.from_pretrained(pretrained_model)
+    input = f"ask question: {text} answer: {keyword} </s>"
+    encoding = tokenizer.encode_plus(
+        input, max_length=max_input_length, padding=True, return_tensors="pt"
+    )
+    input_ids, attention_mask = encoding["input_ids"].to(device), encoding[
+        "attention_mask"
+    ].to(device)
+    outputs = model.generate(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        max_length=max_target_length,
+        early_stopping=True,
+        num_beams=5,
+        num_return_sequences=1,
+    )
+    question = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return question.strip()
+
+
+def get_questions(text):
+    # keywords = get_best_keywords(text)
+    keywords = ["Elizabeth", "Peter"]
+    for keyword in keywords:
+        question = get_question(text, keyword)
+        print(question)
+        print(f"answer: {keyword}")
 
 
 def get_best_keywords(text) -> List[str]:
