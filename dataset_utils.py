@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import List, Dict
 
 import torch
@@ -20,14 +21,37 @@ from config import (
 )
 
 
+@dataclass
+class T2TDataCollator:
+    def __call__(self, batch: List) -> Dict[str, torch.Tensor]:
+        """
+        Take a list of samples from a dataset and collate them into a batch. Returns dictionary of tensors.
+        """
+
+        input_ids = torch.stack([example["input_ids"] for example in batch])
+        lm_labels = torch.stack([example["decoder_input_ids"] for example in batch])
+        lm_labels[lm_labels[:, :] == 0] = -100
+        attention_mask = torch.stack([example["attention_mask"] for example in batch])
+        decoder_attention_mask = torch.stack(
+            [example["decoder_attention_mask"] for example in batch]
+        )
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "labels": lm_labels,
+            "decoder_attention_mask": decoder_attention_mask,
+        }
+
+
 def prepare_dataset() -> None:
-    # train_dataset = load_dataset("squad", split="train")
-    # test_dataset = load_dataset("squad", split="validation")
-    #
-    # df_train = get_dataframe(train_dataset)
-    # df_test = get_dataframe(test_dataset)
-    #
-    # save_dataset(df_train, df_test)
+    train_dataset = load_dataset("squad", split="train")
+    test_dataset = load_dataset("squad", split="validation")
+
+    df_train = get_dataframe(train_dataset)
+    df_test = get_dataframe(test_dataset)
+
+    save_dataset(df_train, df_test)
 
     dataset = load_dataset(
         "csv",

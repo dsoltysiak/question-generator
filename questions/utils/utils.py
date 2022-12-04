@@ -1,23 +1,31 @@
-from dataclasses import dataclass
-from typing import Dict, List, Any
+from typing import List, Any
+import logging
 
 import torch
 from keybert import KeyBERT
 from nltk import sent_tokenize
-from transformers import T5ForConditionalGeneration, T5Tokenizer, T5TokenizerFast
+from transformers import T5Tokenizer, T5TokenizerFast
 
 from config import (
     max_input_length,
-    summary_model,
     max_target_length,
-    MODEL_PATH,
     pretrained_model,
 )
+from questgen import settings
+
+logger = logging.getLogger(__name__)
 
 
-def get_question(text, keyword):
+def get_questions(text: str) -> str:
+    keyword = get_best_keywords(text)
+    question = get_question(text, keyword)
+    print(keyword)
+    return question.split(":")[-1].strip()
+
+
+def get_question(text: str, keyword: str) -> str:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = T5ForConditionalGeneration.from_pretrained(MODEL_PATH).to(device)
+    model = getattr(settings, "QUESTION_MODEL")
     tokenizer = T5TokenizerFast.from_pretrained(pretrained_model)
     input = f"ask question: {text} answer: {keyword} </s>"
     encoding = tokenizer.encode_plus(
@@ -38,24 +46,15 @@ def get_question(text, keyword):
     return question.strip()
 
 
-def get_questions(text):
-    # keywords = get_best_keywords(text)
-    keywords = ["Elizabeth", "Peter"]
-    for keyword in keywords:
-        question = get_question(text, keyword)
-        print(question)
-        print(f"answer: {keyword}")
-
-
-def get_best_keywords(text) -> List[str]:
+def get_best_keywords(text: str) -> str:
     keywords = get_keywords(text)
     summarized_text = summarize_text(text)
     keywords_summarized = get_keywords(summarized_text)
     important_keywords = [
         keyword for keyword in keywords if keyword in keywords_summarized
     ]
-    print(summarized_text)
-    return important_keywords[:2]
+    logging.info(f"Keywords: {important_keywords}")
+    return important_keywords[0]
 
 
 def get_keywords(text: str) -> tuple[Any]:
@@ -65,8 +64,8 @@ def get_keywords(text: str) -> tuple[Any]:
 
 
 def summarize_text(text: str) -> str:
-    model = T5ForConditionalGeneration.from_pretrained(summary_model).to("cuda")
-    tokenizer = T5Tokenizer.from_pretrained(summary_model)
+    model = getattr(settings, "SUMMARY_MODEL")
+    tokenizer = T5Tokenizer.from_pretrained(pretrained_model)
     text = text.strip().replace("\n", " ")
     text = "summarize: " + text
     encoding = tokenizer.encode_plus(
@@ -86,13 +85,15 @@ def summarize_text(text: str) -> str:
         num_beams=4,
         num_return_sequences=1,
         no_repeat_ngram_size=2,
-        min_length=32,
-        max_length=256,
+        min_length=8,
+        max_length=64,
     ).to("cuda")
 
     summary = tokenizer.decode(outs[0], skip_special_tokens=True)
     summary = postprocess_text(summary)
-    return summary.strip()
+    summary = summary.strip()
+    logging.info(f"Summarized text: {summary}")
+    return summary
 
 
 def postprocess_text(text: str) -> str:
@@ -101,26 +102,3 @@ def postprocess_text(text: str) -> str:
         sent = sent.capitalize()
         final_text += " " + sent
     return final_text
-
-
-@dataclass
-class T2TDataCollator:
-    def __call__(self, batch: List) -> Dict[str, torch.Tensor]:
-        """
-        Take a list of samples from a dataset and collate them into a batch. Returns dictionary of tensors.
-        """
-
-        input_ids = torch.stack([example["input_ids"] for example in batch])
-        lm_labels = torch.stack([example["decoder_input_ids"] for example in batch])
-        lm_labels[lm_labels[:, :] == 0] = -100
-        attention_mask = torch.stack([example["attention_mask"] for example in batch])
-        decoder_attention_mask = torch.stack(
-            [example["decoder_attention_mask"] for example in batch]
-        )
-
-        return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "labels": lm_labels,
-            "decoder_attention_mask": decoder_attention_mask,
-        }

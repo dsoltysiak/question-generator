@@ -14,12 +14,13 @@ from config import (
     TEST_DATASET_TENSOR_PATH,
     MODEL_PATH,
 )
-from utils import T2TDataCollator
+from dataset_utils import T2TDataCollator
 
 
 def train() -> None:
     """Training pipeline to fine-tune the pre-trained model"""
     model = T5ForConditionalGeneration.from_pretrained(pretrained_model)
+    wandb.init(project="question-generation")
 
     train_dataset = torch.load(
         TRAIN_DATASET_TENSOR_PATH, map_location=torch.device("cuda")
@@ -30,13 +31,14 @@ def train() -> None:
 
     training_args = TrainingArguments(
         output_dir=str(MODEL_PATH),
-        per_device_train_batch_size=16,
-        per_device_eval_batch_size=16,
-        gradient_accumulation_steps=2,
-        num_train_epochs=6,
-        learning_rate=1e-3,
+        per_device_train_batch_size=2,
+        per_device_eval_batch_size=2,
+        gradient_accumulation_steps=8,
+        num_train_epochs=4,
+        learning_rate=1e-4,
         logging_steps=300,
         evaluation_strategy="steps",
+        optim="adafactor",
         save_strategy="steps",
         save_steps=1200,
         load_best_model_at_end=True,
@@ -52,7 +54,6 @@ def train() -> None:
         train_dataset=train_dataset,
         eval_dataset=test_dataset,
         data_collator=T2TDataCollator(),
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
     trainer.train()
     wandb.finish()
