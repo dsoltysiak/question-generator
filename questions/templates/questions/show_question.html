@@ -1,0 +1,18 @@
+{% extends 'questions/base.html' %}
+
+{% block content %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/questions.css' %}">
+
+<h1>Question generator</h1>
+<form method="post" action="">
+    {% csrf_token %}
+    <div class="center">
+        <textarea class="box">{{question.context}}</textarea>
+        <a href="/">
+            <button type="button" class="button">Go back</button>
+        </a>
+        <textarea class="box">{{question.question}}</textarea>
+    </div>
+</form>
+{% endblock %}

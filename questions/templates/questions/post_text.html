@@ -1,0 +1,16 @@
+{% extends 'questions/base.html' %}
+
+{% block content %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/questions.css' %}">
+
+<h1>Question generator</h1>
+<form method="post" action="">
+    {% csrf_token %}
+    <div class="center">
+        {{form}}
+        <button type="submit" name="save" class="button">Generate the question</button>
+        <textarea class="box" placeholder="The question to your text should appear here" readonly="readonly"></textarea>
+    </div>
+</form>
+{% endblock %}
